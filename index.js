@@ -58,12 +58,16 @@ class RTMPInterceptor {
 
   async getTCUrl (client) {
     let tcURL
+    let gotMatch = false
     while (true) {
       const chunk = await once(client, 'data')
       const matches = chunk.toString().match(/rtmp[^\0]+/)
-      if (matches) {
-        tcURL = matches[0]
+      if(gotMatch) {
+        tcURL+=chunk.toString().replace('�', '')  /* Replacement character */
         return tcURL
+      }else if (matches) {
+        tcURL = matches[0]
+        gotMatch = true
       }
     }
   }
