@@ -29,7 +29,7 @@ class RTMPInterceptor {
     const server = net.createConnection(this.remotePort, this.remoteHost)
     server.pipe(client)
 
-    await this.handshake(client, server)          /* RTMP handshacke */
+    await this.handshake(client, server)          /* RTMP handshake */
   
     const passThrough = new stream.PassThrough()
     client.pipe(passThrough).pipe(server)
@@ -40,7 +40,7 @@ class RTMPInterceptor {
     passThrough.resume()
   }
 
-  async handshake (client, server) {              /* WARN: Doesn't verify handshack integrity */
+  async handshake (client, server) {              /* WARN: Doesn't verify handshake integrity */
     await once(client, 'readable')
     const c0 = client.read(1)
   
