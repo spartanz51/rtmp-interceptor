@@ -23,7 +23,7 @@ It allows you to easily authentify your RTMP stream with your API to accept or r
 	    console.log(data) /* Do something with the data ... */
     })
 
-![example/interceptUrl.js](https://s1.gifyu.com/images/Peek-22-09-2020-16-11.gif)
+![example/interceptUrl.js](https://s1.gifyu.com/images/ezgif.com-gif-maker-247b9f721da2a0ccb.gif)
 
 See examples
 
