@@ -49,7 +49,7 @@ RTMPInterceptor.listen(params, (client, server, tcUrl, SKey) => {
 
 ```
 
-Server will se stream key as: *MyHookedKey*
+Server will see stream key as: *MyHookedKey*
 
 **Note:** This method does not build the chunk: you have to build it yourself and pass the full chunk.
 
