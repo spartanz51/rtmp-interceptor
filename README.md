@@ -28,4 +28,4 @@ See examples
 
 ## Todo: 
  - [x] Intercept RTMP tcUrl
- - [ ] Intercept RTMP API KEY
+ - [x] Intercept RTMP API KEY

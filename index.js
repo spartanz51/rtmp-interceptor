@@ -5,7 +5,6 @@
  */
 
 const net = require('net')
-const stream = require('stream')
 const { once } = require('events')
 
 class RTMPInterceptor {
@@ -23,57 +22,97 @@ class RTMPInterceptor {
   }
 
   async onstream(client) {
-    client.on('close', ()=>{
-      this.onleave(client, passThrough)
-    })
     const server = net.createConnection(this.remotePort, this.remoteHost)
+    client.on('close', ()=>{
+      this.onleave(client)
+    })
+    client.on('error', ()=>{
+      console.log('client is closed')
+    })
+    server.on('close', () => console.log('server is closed'))
+    server.on('error', err => {
+      console.error('erreur terrible de connexion au serveur')
+      console.error(err)
+    })
+
     server.pipe(client)
 
-    await this.handshake(client, server)          /* RTMP handshake */
-  
-    const passThrough = new stream.PassThrough()
-    client.pipe(passThrough).pipe(server)
+    await this.handshake(client, server)                  /* RTMP handshake */
+    const tcUrl = await this.getTCUrl(client, server)     /* Intercept TcURL */
+    const c4    = await this.c4(client, server)           /* Intercept chunk4 (ignore & forward it) */
+    const sKey  = await this.getSKey(client, server)      /* Intercept Stream Key */
 
-    passThrough.pause()
-    const tcUrl = await this.getTCUrl(client)
-    this.ondata(client, server, tcUrl)
-    passThrough.resume()
+    this.ondata(client, server, tcUrl, sKey)
+    client.pipe(server)                                   /* Then pipe everything */
   }
 
-  async handshake (client, server) {              /* WARN: Doesn't verify handshake integrity */
+  async handshake (client, server) {                      /* WARN: Doesn't verify handshake integrity */
     await once(client, 'readable')
     const c0 = client.read(1)
-  
+    server.write(c0)
+
     await once(client, 'readable')
     const c1 = client.read(1536)
-  
-    server.write(c0)
     server.write(c1)
   
     await once(client, 'readable')
     const c2 = client.read(1536)
-  
     server.write(c2)
   }
 
-  async getTCUrl (client) {
-    let tcURL
-    let gotMatch = false
-    while (true) {
-      const chunk = await once(client, 'data')
-      const matches = chunk.toString().match(/rtmp[^\0]+/)
-      if(gotMatch) {
-        tcURL+=chunk.toString().replace('�', '')  /* Replacement character */
-        return tcURL
-      }else if (matches) {
-        tcURL = matches[0]
-        gotMatch = true
-      }
+  async c4 (client, server) {
+    const c4 = await once(client, 'data')
+    for (const chunk of c4) {
+      server.write(chunk)
     }
+    return c4
   }
 
-  async onleave(passThrough) {
-    passThrough.end()
+  async getTCUrl (client, server) {
+    let tcURL
+    await once(client, 'readable')
+    const chunks = await once(client, 'data')
+   
+    for (const chunk of chunks) {
+      const matches = chunk.toString().match(/rtmp[^\0]+/)
+      if (tcURL === undefined && matches) {
+        tcURL = matches[0]
+      }
+    }
+   
+    if (tcURL === undefined) {            /* Verify tcUrl */
+      console.log('tcURL not received')
+      client.destroy()
+      server.destroy()
+      return
+    }
+    for (const chunk of chunks) {         /* Send intercepted chunks */
+      server.write(chunk)
+    }
+
+    return tcURL
+  }
+
+  async getSKey (client, server) {
+    const c5 = await once(client, 'data') 
+    let streamKey
+    for (const chunk of c5) {
+      const matches = chunk.toString().replace(/[^\x20-\x7E]/g, '').match(/publish\@(.+)live/)
+      if (matches) {
+        streamKey = matches[1]
+      }
+    }
+  
+    for (const chunk of c5) {
+      server.write(chunk)
+    }
+  
+    server.write(c5[0])
+    return streamKey
+  }
+
+  async onleave() {
+    console.log('leave')
   }
 
   async ondata() {}
