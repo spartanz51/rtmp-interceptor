@@ -100,7 +100,9 @@ class RTMPInterceptor {
 
     if(this.hookCb) {                     /* Hook the streamkey chunk */
       const hooked = this.hookCb(c5, tcUrl)
-      c5 = [hooked]
+      if(hooked) {
+        c5 = [hooked]
+      }
     }
 
     let streamKey
