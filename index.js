@@ -23,17 +23,26 @@ class RTMPInterceptor {
   }
 
   async onstream(client) {
-    const server = net.createConnection(this.remotePort, this.remoteHost)
+    const server = await net.createConnection(this.remotePort, this.remoteHost)
+
     client.on('close', ()=>{
+      client.destroy()
+      server.destroy()
       this.onleave(client)
     })
     client.on('error', ()=>{
+      client.destroy()
+      server.destroy()
       console.log('client is closed')
     })
     server.on('close', () => {
+      client.destroy()
+      server.destroy()
       console.log('server is closed')
     })
     server.on('error', err => {
+      client.destroy()
+      server.destroy()
       console.error(err)
     })
 
@@ -73,12 +82,19 @@ class RTMPInterceptor {
   async getTCUrl (client, server) {
     let tcURL
     await once(client, 'readable')
-    const chunks = await once(client, 'data')
+    let chunks = await once(client, 'data')
+
+    if(!chunks.toString().replace(/[^\x20-\x7E]/g, '').includes('rtmp://')){
+      for (const chunk of chunks) {        /* Send intercepted chunks */
+        await server.write(chunk)
+      }
+      chunks = await once(client, 'data')  /* Skip bad chunk */
+    }
    
     for (const chunk of chunks) {
       const matches = chunk.toString().match(/rtmp[^\0]+/)
       if (tcURL === undefined && matches) {
-        tcURL = matches[0]
+        tcURL = matches[0].replace(/\s/g, '')
       }
     }
    
@@ -97,6 +113,13 @@ class RTMPInterceptor {
 
   async getSKey (client, server, tcUrl) {
     let c5 = await once(client, 'data')
+
+    if(!c5.toString().replace(/[^\x20-\x7E]/g, '').includes('publish')){
+      for (const chunk of c5) {           /* Send intercepted chunks */
+        await server.write(chunk)
+      }
+      c5 = await once(client, 'data')     /* Skip bad chunk */
+    }
 
     if(this.hookCb) {                     /* Hook the streamkey chunk */
       const hooked = this.hookCb(c5, tcUrl)
