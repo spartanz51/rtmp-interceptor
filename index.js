@@ -8,10 +8,11 @@ const net = require('net')
 const { once } = require('events')
 
 class RTMPInterceptor {
-  constructor (remoteHost, remotePort, listenPort) {
+  constructor (remoteHost, remotePort, listenPort, hookCb) {
     this.remoteHost = remoteHost
     this.remotePort = remotePort
     this.listenPort = listenPort
+    this.hookCb = hookCb
 
     this.startService()
   }
@@ -29,9 +30,10 @@ class RTMPInterceptor {
     client.on('error', ()=>{
       console.log('client is closed')
     })
-    server.on('close', () => console.log('server is closed'))
+    server.on('close', () => {
+      console.log('server is closed')
+    })
     server.on('error', err => {
-      console.error('erreur terrible de connexion au serveur')
       console.error(err)
     })
 
@@ -94,20 +96,25 @@ class RTMPInterceptor {
   }
 
   async getSKey (client, server) {
-    const c5 = await once(client, 'data') 
+    let c5 = await once(client, 'data')
+
+    if(this.hookCb) {                     /* Hook the streamkey chunk */
+      const hooked = this.hookCb(c5)
+      c5 = [hooked]
+    }
+
     let streamKey
     for (const chunk of c5) {
       const matches = chunk.toString().replace(/[^\x20-\x7E]/g, '').match(/publish\@(.+)live/)
       if (matches) {
-        streamKey = matches[1]
+        streamKey = matches[1].replace(/\s/g, '')
       }
     }
   
     for (const chunk of c5) {
       server.write(chunk)
     }
-  
-    server.write(c5[0])
+
     return streamKey
   }
 
@@ -119,7 +126,7 @@ class RTMPInterceptor {
 }
 
 function listen(payload, cb) {
-  const r = new RTMPInterceptor(payload.remoteHost, payload.remotePort, payload.listenPort)
+  const r = new RTMPInterceptor(payload.remoteHost, payload.remotePort, payload.listenPort, payload.hookCb)
   r.ondata = cb
 }
 
