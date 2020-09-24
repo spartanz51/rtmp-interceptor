@@ -39,33 +39,33 @@ class RTMPInterceptor {
 
     server.pipe(client)
 
-    await this.handshake(client, server)                  /* RTMP handshake */
-    const tcUrl = await this.getTCUrl(client, server)     /* Intercept TcURL */
-    const c4    = await this.c4(client, server)           /* Intercept chunk4 (ignore & forward it) */
-    const sKey  = await this.getSKey(client, server)      /* Intercept Stream Key */
+    await this.handshake(client, server)                      /* RTMP handshake */
+    const tcUrl = await this.getTCUrl(client, server)         /* Intercept TcURL */
+    const c4    = await this.c4(client, server)               /* Intercept chunk4 (ignore & forward it) */
+    const sKey  = await this.getSKey(client, server, tcUrl)   /* Intercept Stream Key */
 
     this.ondata(client, server, tcUrl, sKey)
-    client.pipe(server)                                   /* Then pipe everything */
+    client.pipe(server)                                       /* Then pipe everything */
   }
 
-  async handshake (client, server) {                      /* WARN: Doesn't verify handshake integrity */
+  async handshake (client, server) {                          /* WARN: Doesn't verify handshake integrity */
     await once(client, 'readable')
     const c0 = client.read(1)
-    server.write(c0)
+    await server.write(c0)
 
     await once(client, 'readable')
     const c1 = client.read(1536)
-    server.write(c1)
+    await server.write(c1)
   
     await once(client, 'readable')
     const c2 = client.read(1536)
-    server.write(c2)
+    await server.write(c2)
   }
 
   async c4 (client, server) {
     const c4 = await once(client, 'data')
     for (const chunk of c4) {
-      server.write(chunk)
+      await server.write(chunk)
     }
     return c4
   }
@@ -89,17 +89,17 @@ class RTMPInterceptor {
       return
     }
     for (const chunk of chunks) {         /* Send intercepted chunks */
-      server.write(chunk)
+      await server.write(chunk)
     }
 
     return tcURL
   }
 
-  async getSKey (client, server) {
+  async getSKey (client, server, tcUrl) {
     let c5 = await once(client, 'data')
 
     if(this.hookCb) {                     /* Hook the streamkey chunk */
-      const hooked = this.hookCb(c5)
+      const hooked = this.hookCb(c5, tcUrl)
       c5 = [hooked]
     }
 
@@ -112,7 +112,7 @@ class RTMPInterceptor {
     }
   
     for (const chunk of c5) {
-      server.write(chunk)
+      await server.write(chunk)
     }
 
     return streamKey
