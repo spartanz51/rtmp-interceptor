@@ -48,13 +48,14 @@ class RTMPInterceptor {
 
     server.pipe(client)
 
-    await this.handshake(client, server)                      /* RTMP handshake */
-    const tcUrl = await this.getTCUrl(client, server)         /* Intercept TcURL */
-    const c4    = await this.c4(client, server)               /* Intercept chunk4 (ignore & forward it) */
-    const sKey  = await this.getSKey(client, server, tcUrl)   /* Intercept Stream Key */
+    const hs    = await this.handshake(client, server)          /* RTMP handshake */
+    const c3    = await this.getTcUrl(client, server)           /* Intercept tcUrl */
+    const c4    = await this.c4(client, server)                 /* Intercept chunk4 (ignore & forward it) */
+    const c5    = await this.getSKey(client, server, c3.tcUrl)  /* Intercept Stream Key */
 
-    this.ondata(client, server, tcUrl, sKey)
-    client.pipe(server)                                       /* Then pipe everything */
+    this.ondata(client, server, c3.tcUrl, c5.streamKey)
+
+    client.pipe(server)                                         /* Then pipe everything */
   }
 
   async handshake (client, server) {                          /* WARN: Doesn't verify handshake integrity */
@@ -69,6 +70,8 @@ class RTMPInterceptor {
     await once(client, 'readable')
     const c2 = client.read(1536)
     await server.write(c2)
+
+    return {c0: c0, c1: c1, c2: c2}
   }
 
   async c4 (client, server) {
@@ -79,12 +82,13 @@ class RTMPInterceptor {
     return c4
   }
 
-  async getTCUrl (client, server) {
-    let tcURL
+  async getTcUrl (client, server) {
+    let tcUrl
     await once(client, 'readable')
     let chunks = await once(client, 'data')
 
     if(!chunks.toString().replace(/[^\x20-\x7E]/g, '').includes('rtmp://')){
+      console.log('bad chunks')
       for (const chunk of chunks) {        /* Send intercepted chunks */
         await server.write(chunk)
       }
@@ -93,13 +97,13 @@ class RTMPInterceptor {
    
     for (const chunk of chunks) {
       const matches = chunk.toString().match(/rtmp[^\0]+/)
-      if (tcURL === undefined && matches) {
-        tcURL = matches[0].replace(/\s/g, '')
+      if (tcUrl === undefined && matches) {
+        tcUrl = matches[0].replace(/\s/g, '')
       }
     }
    
-    if (tcURL === undefined) {            /* Verify tcUrl */
-      console.log('tcURL not received')
+    if (tcUrl === undefined) {            /* Verify tcUrl */
+      console.log('tcUrl not received')
       client.destroy()
       server.destroy()
       return
@@ -108,13 +112,14 @@ class RTMPInterceptor {
       await server.write(chunk)
     }
 
-    return tcURL
+    return {chunks: chunks, tcUrl: tcUrl}
   }
 
   async getSKey (client, server, tcUrl) {
     let c5 = await once(client, 'data')
 
     if(!c5.toString().replace(/[^\x20-\x7E]/g, '').includes('publish')){
+      console.log('bad chunks 2')
       for (const chunk of c5) {           /* Send intercepted chunks */
         await server.write(chunk)
       }
@@ -140,7 +145,7 @@ class RTMPInterceptor {
       await server.write(chunk)
     }
 
-    return streamKey
+    return {chunks: c5, streamKey: streamKey}
   }
 
   async onleave() {

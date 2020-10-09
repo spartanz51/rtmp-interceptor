@@ -1,9 +1,9 @@
 const RTMPInterceptor = require('..')
 
 const params = {
-  remoteHost: "51.25.22.322",
+  remoteHost: "localhost",
   remotePort: '1935',
-  listenPort: '1935'
+  listenPort: '1936'
 }
 
 RTMPInterceptor.listen(params, (client, server, tcUrl, SKey) => {
