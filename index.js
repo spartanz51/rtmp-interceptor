@@ -35,6 +35,9 @@ class RTMPInterceptor {
   }
 
   async onstream(client) {
+    let server = null
+    this.bindClientEvents(client, server)
+
     const hs    = await this.handshake(client)          /* RTMP handshake */
     await client.write(this.binaryChunks.hsr)
 
@@ -55,10 +58,42 @@ class RTMPInterceptor {
         .concat(c3.chunks)
         .concat(sk.chunks)
 
-      const server = this.proxify(payload, chunks, client)
+      server = await this.proxify(payload, chunks, client)
+      this.bindServerEvents(client, server)
     }else{
       await client.destroy()
     }
+  }
+
+  bindClientEvents(client, server) {
+    client.on('close', ()=>{
+      client.destroy()
+      if(server) {
+        server.destroy()
+      }
+      this.onleave(client)
+    })
+    client.on('error', ()=>{
+      client.destroy()
+      if(server) {
+        server.destroy()
+      }
+    })
+  }
+
+  bindServerEvents(client, server) {
+    server.on('close', () => {
+      client.destroy()
+      if(server) {
+        server.destroy()
+      }
+    })
+    server.on('error', err => {
+      client.destroy()
+      if(server) {
+        server.destroy()
+      }
+    })
   }
 
   async handshake (client) {                            /* WARN: Doesn't verify handshake integrity */
