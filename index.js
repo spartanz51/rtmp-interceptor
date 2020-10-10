@@ -49,7 +49,7 @@ class RTMPInterceptor {
 
     const sk    = await this.getSKey(client, tc.tcUrl)  /* Intercept Stream Key */ 
 
-    const payload = this.ondata(client, tc.tcUrl, sk.streamKey)
+    const payload = await this.ondata(client, tc.tcUrl, sk.streamKey)
 
     if(payload) {
       await client.write(this.binaryChunks.skr)         /* Send confirmation to the client */
