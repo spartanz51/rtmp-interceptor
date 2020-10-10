@@ -71,7 +71,9 @@ class RTMPInterceptor {
       if(server) {
         server.destroy()
       }
-      this.onleave(client)
+      if(client.onleave){
+        client.onleave()
+      }
     })
     client.on('error', ()=>{
       client.destroy()
@@ -183,10 +185,6 @@ class RTMPInterceptor {
     server.pipe(client)
 
     return server
-  }
-
-  async onleave() {
-    console.log('leave')
   }
 
   async ondata() {}
