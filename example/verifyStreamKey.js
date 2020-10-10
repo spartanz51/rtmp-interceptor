@@ -1,18 +1,20 @@
 const RTMPInterceptor = require('..')
 
 const params = {
-  remoteHost: "51.25.22.322",
-  remotePort: '1935',
-  listenPort: '1935'
+  listenPort: '1936'
 }
 
-RTMPInterceptor.listen(params, (client, server, tcUrl, SKey) => {
-  const token = 'JZ9vZhYMWPFrCtd4vpYdwpqtndRRBSvu'
+RTMPInterceptor.listen(params, (client, tcUrl, SKey) => {
+  const token = '32e86abbf8393b9c36'
 
   if(SKey === token) {
     console.log('Key verified: passthrought to server')
+    return {
+      host: 'localhost',
+      port: '1935'
+    }
   }else{
     console.log('Invalid key: ending socket')
-    client.end()
+    return false
   }
 })

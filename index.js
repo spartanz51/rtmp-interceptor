@@ -6,91 +6,82 @@
 
 const net = require('net')
 const { once } = require('events')
+const fs = require('fs').promises
 
 class RTMPInterceptor {
-  constructor (remoteHost, remotePort, listenPort, hookCb) {
-    this.remoteHost = remoteHost
-    this.remotePort = remotePort
+  constructor (listenPort, hookCb) {
     this.listenPort = listenPort
     this.hookCb = hookCb
 
     this.startService()
   }
 
-  startService() {
+  async startService() {
+    /* 
+     *  Load binaries replies
+     */
+    const hsr = Buffer.from(await fs.readFile('chunks/handshake.bin'))
+    const tcr = Buffer.from(await fs.readFile('chunks/tcurl.bin'))
+    const c3r = Buffer.from(await fs.readFile('chunks/c3.bin'))
+    const skr = Buffer.from(await fs.readFile('chunks/skey.bin'))
+    this.binaryChunks = {
+      hsr: hsr,
+      tcr: tcr,
+      c3r: c3r,
+      skr: skr
+    }
     this.server = net.createServer(client => { this.onstream(client) })
     this.server.listen(this.listenPort)
   }
 
   async onstream(client) {
-    const server = await net.createConnection(this.remotePort, this.remoteHost)
+    const hs    = await this.handshake(client)          /* RTMP handshake */
+    await client.write(this.binaryChunks.hsr)
 
-    client.on('close', ()=>{
-      client.destroy()
-      server.destroy()
-      this.onleave(client)
-    })
-    client.on('error', ()=>{
-      client.destroy()
-      server.destroy()
-      console.log('client is closed')
-    })
-    server.on('close', () => {
-      client.destroy()
-      server.destroy()
-      console.log('server is closed')
-    })
-    server.on('error', err => {
-      client.destroy()
-      server.destroy()
-      console.error(err)
-    })
+    const tc    = await this.getTcUrl(client)           /* Intercept tcUrl */
+    await client.write(this.binaryChunks.tcr)
 
-    server.pipe(client)
+    const c3    = await this.c3(client)                 /* Intercept chunk3 */
+    await client.write(this.binaryChunks.c3r)
 
-    const hs    = await this.handshake(client, server)          /* RTMP handshake */
-    const c3    = await this.getTcUrl(client, server)           /* Intercept tcUrl */
-    const c4    = await this.c4(client, server)                 /* Intercept chunk4 (ignore & forward it) */
-    const c5    = await this.getSKey(client, server, c3.tcUrl)  /* Intercept Stream Key */
+    const sk    = await this.getSKey(client, tc.tcUrl)  /* Intercept Stream Key */ 
 
-    this.ondata(client, server, c3.tcUrl, c5.streamKey)
+    const payload = this.ondata(client, tc.tcUrl, sk.streamKey)
 
-    client.pipe(server)                                         /* Then pipe everything */
-  }
+    if(payload) {
+      await client.write(this.binaryChunks.skr)         /* Send confirmation to the client */
+      const chunks = hs.chunks
+        .concat(tc.chunks)
+        .concat(c3.chunks)
+        .concat(sk.chunks)
 
-  async handshake (client, server) {                          /* WARN: Doesn't verify handshake integrity */
-    await once(client, 'readable')
-    const c0 = client.read(1)
-    await server.write(c0)
-
-    await once(client, 'readable')
-    const c1 = client.read(1536)
-    await server.write(c1)
-  
-    await once(client, 'readable')
-    const c2 = client.read(1536)
-    await server.write(c2)
-
-    return {c0: c0, c1: c1, c2: c2}
-  }
-
-  async c4 (client, server) {
-    const c4 = await once(client, 'data')
-    for (const chunk of c4) {
-      await server.write(chunk)
+      const server = this.proxify(payload, chunks, client)
+    }else{
+      await client.destroy()
     }
-    return c4
   }
 
-  async getTcUrl (client, server) {
+  async handshake (client) {                            /* WARN: Doesn't verify handshake integrity */
+    await once(client, 'readable')
+    const c0 = await once(client, 'data')
+    return {chunks: c0}
+  }
+
+  async c3 (client) {
+    await once(client, 'readable')
+    const c3 = await once(client, 'data')
+    return {chunks: c3}
+  }
+
+  async getTcUrl (client) {
+    let resultChunks = []
     let tcUrl
     await once(client, 'readable')
     let chunks = await once(client, 'data')
 
     if(!chunks.toString().replace(/[^\x20-\x7E]/g, '').includes('rtmp://')){
-      console.log('bad chunks')
       for (const chunk of chunks) {        /* Send intercepted chunks */
-        await server.write(chunk)
+        resultChunks.push(chunk)
       }
       chunks = await once(client, 'data')  /* Skip bad chunk */
     }
@@ -105,23 +96,22 @@ class RTMPInterceptor {
     if (tcUrl === undefined) {            /* Verify tcUrl */
       console.log('tcUrl not received')
       client.destroy()
-      server.destroy()
       return
     }
     for (const chunk of chunks) {         /* Send intercepted chunks */
-      await server.write(chunk)
+      resultChunks.push(chunk)
     }
 
-    return {chunks: chunks, tcUrl: tcUrl}
+    return {chunks: resultChunks, tcUrl: tcUrl}
   }
 
-  async getSKey (client, server, tcUrl) {
-    let c5 = await once(client, 'data')
+  async getSKey (client, tcUrl) {
+    let resultChunks = []
 
+    let c5 = await once(client, 'data')
     if(!c5.toString().replace(/[^\x20-\x7E]/g, '').includes('publish')){
-      console.log('bad chunks 2')
       for (const chunk of c5) {           /* Send intercepted chunks */
-        await server.write(chunk)
+        resultChunks.push(chunk)
       }
       c5 = await once(client, 'data')     /* Skip bad chunk */
     }
@@ -142,10 +132,22 @@ class RTMPInterceptor {
     }
   
     for (const chunk of c5) {
-      await server.write(chunk)
+      resultChunks.push(chunk)
     }
 
-    return {chunks: c5, streamKey: streamKey}
+    return {chunks: resultChunks, streamKey: streamKey}
+  }
+
+  async proxify(payload, chunks, client) {
+    const server = await net.createConnection(payload.port, payload.host)
+    for (let c of chunks) {
+      await server.write(c)
+    }
+
+    client.pipe(server)
+    server.pipe(client)
+
+    return server
   }
 
   async onleave() {
@@ -156,7 +158,7 @@ class RTMPInterceptor {
 }
 
 function listen(payload, cb) {
-  const r = new RTMPInterceptor(payload.remoteHost, payload.remotePort, payload.listenPort, payload.hookCb)
+  const r = new RTMPInterceptor(payload.listenPort, payload.hookCb)
   r.ondata = cb
 }
 

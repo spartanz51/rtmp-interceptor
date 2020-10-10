@@ -5,13 +5,16 @@ function hookStreamKey (chunks) {
 }
 
 const params = {
-  remoteHost: "51.25.22.322",
-  remotePort: '1935',
-  listenPort: '1935',
+  listenPort: '1936',
   hookCb: hookStreamKey
 }
 
-RTMPInterceptor.listen(params, (client, server, tcUrl, SKey) => {
+RTMPInterceptor.listen(params, (client, tcUrl, SKey) => {
   console.log('tcUrl: '+tcUrl)      /* Do something with the data ... */
-  console.log('StramKey: '+SKey)
+  console.log('StreamKey: '+SKey)
+
+  return {                          /* Return false to block client and close stream */
+    host: 'localhost',
+    port: '1935'
+  }
 })

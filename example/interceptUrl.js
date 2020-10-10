@@ -1,11 +1,14 @@
 const RTMPInterceptor = require('..')
 
 const params = {
-  remoteHost: "51.25.22.322",
-  remotePort: '1935',
-  listenPort: '1935'
+  listenPort: '1936'
 }
 
-RTMPInterceptor.listen(params, (client, server, tcUrl) => {
-  console.log(tcUrl) /* Do something with the data ... */
+RTMPInterceptor.listen(params, (client, tcUrl) => {
+  console.log('tcUrl: '+tcUrl)      /* Do something with the data ... */
+
+  return {                          /* Return false to block client and close stream */
+    host: 'localhost',
+    port: '1935'
+  }
 })
