@@ -20,10 +20,10 @@ class RTMPInterceptor {
     /* 
      *  Load binaries replies
      */
-    const hsr = Buffer.from(await fs.readFile('chunks/handshake.bin'))
-    const tcr = Buffer.from(await fs.readFile('chunks/tcurl.bin'))
-    const c3r = Buffer.from(await fs.readFile('chunks/c3.bin'))
-    const skr = Buffer.from(await fs.readFile('chunks/skey.bin'))
+    const hsr = Buffer.from(await fs.readFile(__dirname+'/chunks/handshake.bin'))
+    const tcr = Buffer.from(await fs.readFile(__dirname+'/chunks/tcurl.bin'))
+    const c3r = Buffer.from(await fs.readFile(__dirname+'/chunks/c3.bin'))
+    const skr = Buffer.from(await fs.readFile(__dirname+'/chunks/skey.bin'))
     this.binaryChunks = {
       hsr: hsr,
       tcr: tcr,
