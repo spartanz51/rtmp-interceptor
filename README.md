@@ -33,9 +33,11 @@ RTMPInterceptor.listen(params, (client, tcUrl, SKey) => {
 ```
 
 Open OBS, and start streaming on 'rtmp://localhost:1936/live'
+
 Output:
+
 > tcUrl: rtmp://localhost:1936/live
-> StreamKey: <specified stream key>
+> StreamKey: specified stream key
 
 
 ### Authentify client
@@ -52,24 +54,21 @@ It allows you to pass the stream key in the tcurl for example, and hook it into 
 ```
 const RTMPInterceptor = require('rtmp-interceptor')
 
-function hookStreamKey (chunks) {
-  return '\u0004\u0000\u0000\u0000\u0000\u0000)\u0014\u0001\u0000\u0000\u0000\u0002\u0000\u0007publish\u0000@\u0014\u0000\u0000\u0000\u0000\u0000\u0000\u0005\u0002\u0000\u000bMyHookedKey\u0002\u0000\u0004live'
-}
-
 const params = {
-  listenPort: '1936',
-  hookCb: hookStreamKey
+  listenPort: '1936'
 }
 
-RTMPInterceptor.listen(params, (client, tcUrl, SKey) => {
+RTMPInterceptor.listen(params, async (client, tcUrl, SKey) => {
   console.log('tcUrl: '+tcUrl)      /* Do something with the data ... */
   console.log('StreamKey: '+SKey)
 
   return {                          /* Return false to block client and close stream */
     host: 'localhost',
-    port: '1935'
+    port: '1935',
+    skChunks: ['\u0004\u0000\u0000\u0000\u0000\u0000)\u0014\u0001\u0000\u0000\u0000\u0002\u0000\u0007publish\u0000@\u0014\u0000\u0000\u0000\u0000\u0000\u0000\u0005\u0002\u0000\u000bMyHookedKey\u0002\u0000\u0004live']
   }
 })
+
 
 
 ```

@@ -1,6 +1,6 @@
 {
   "name": "rtmp-interceptor",
-  "version": "2.1.3",
+  "version": "2.2.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -15,5 +15,6 @@
   "bugs": {
     "url": "https://github.com/spartanz51/rtmp-interceptor/issues"
   },
-  "homepage": "https://github.com/spartanz51/rtmp-interceptor#readme"
+  "homepage": "https://github.com/spartanz51/rtmp-interceptor#readme",
+  "dependencies": {}
 }

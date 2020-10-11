@@ -9,9 +9,8 @@ const { once } = require('events')
 const fs = require('fs').promises
 
 class RTMPInterceptor {
-  constructor (listenPort, hookCb) {
+  constructor (listenPort) {
     this.listenPort = listenPort
-    this.hookCb = hookCb
 
     this.startService()
   }
@@ -47,16 +46,24 @@ class RTMPInterceptor {
     const c3    = await this.c3(client)                 /* Intercept chunk3 */
     await client.write(this.binaryChunks.c3r)
 
-    const sk    = await this.getSKey(client, tc.tcUrl)  /* Intercept Stream Key */ 
+    const sk    = await this.getSKey(client, tc.tcUrl)  /* Intercept Stream Key */
 
     const payload = await this.ondata(client, tc.tcUrl, sk.streamKey)
 
     if(payload) {
       await client.write(this.binaryChunks.skr)         /* Send confirmation to the client */
+      let tcChunks = tc.chunks
+      let skChunks = sk.chunks
+      if(payload.tcChunks){
+        tcChunks = payload.tcChunks
+      }
+      if(payload.skChunks){
+        skChunks = payload.skChunks
+      }
       const chunks = hs.chunks
-        .concat(tc.chunks)
+        .concat(tcChunks)
         .concat(c3.chunks)
-        .concat(sk.chunks)
+        .concat(skChunks)
 
       server = await this.proxify(payload, chunks, client)
       this.bindServerEvents(client, server)
@@ -153,13 +160,6 @@ class RTMPInterceptor {
       c5 = await once(client, 'data')     /* Skip bad chunk */
     }
 
-    if(this.hookCb) {                     /* Hook the streamkey chunk */
-      const hooked = this.hookCb(c5, tcUrl)
-      if(hooked) {
-        c5 = [hooked]
-      }
-    }
-
     let streamKey
     for (const chunk of c5) {
       const matches = chunk.toString().replace(/[^\x20-\x7E]/g, '').match(/publish\@(.+)live/)
@@ -191,7 +191,7 @@ class RTMPInterceptor {
 }
 
 function listen(payload, cb) {
-  const r = new RTMPInterceptor(payload.listenPort, payload.hookCb)
+  const r = new RTMPInterceptor(payload.listenPort)
   r.ondata = cb
 }
 
