@@ -161,7 +161,7 @@ class RTMPInterceptor {
 
     let streamKey
     for (const chunk of chunks) {
-      const matches = chunk.toString().replace(/[^\x20-\x7E]/g, '').match(/publish\@(.+)live/)
+      const matches = chunk.toString().replace(/[^\x20-\x7E]/g, '').match(/publish[@]{0,1}(.+)live/)
       if (matches) {
         streamKey = matches[1].replace(/\s/g, '')
       }
