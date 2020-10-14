@@ -64,7 +64,6 @@ class RTMPInterceptor {
         .concat(tcChunks)
         .concat(c3.chunks)
         .concat(skChunks)
-
       server = await this.proxify(payload, chunks, client)
       this.bindServerEvents(client, server)
     }else{
@@ -123,7 +122,7 @@ class RTMPInterceptor {
     await once(client, 'readable')
     let chunks = await once(client, 'data')
 
-    if(!chunks.toString().replace(/[^\x20-\x7E]/g, '').includes('rtmp://')){
+    while(!chunks.toString().replace(/[^\x20-\x7E]/g, '').includes('rtmp://')){
       for (const chunk of chunks) {        /* Send intercepted chunks */
         resultChunks.push(chunk)
       }
@@ -152,23 +151,23 @@ class RTMPInterceptor {
   async getSKey (client, tcUrl) {
     let resultChunks = []
 
-    let c5 = await once(client, 'data')
-    if(!c5.toString().replace(/[^\x20-\x7E]/g, '').includes('publish')){
-      for (const chunk of c5) {           /* Send intercepted chunks */
+    let chunks = await once(client, 'data')
+    while(!chunks.toString().replace(/[^\x20-\x7E]/g, '').includes('publish')){
+      for (const chunk of chunks) {           /* Send intercepted chunks */
         resultChunks.push(chunk)
       }
-      c5 = await once(client, 'data')     /* Skip bad chunk */
+      chunks = await once(client, 'data')     /* Skip bad chunk */
     }
 
     let streamKey
-    for (const chunk of c5) {
+    for (const chunk of chunks) {
       const matches = chunk.toString().replace(/[^\x20-\x7E]/g, '').match(/publish\@(.+)live/)
       if (matches) {
         streamKey = matches[1].replace(/\s/g, '')
       }
     }
   
-    for (const chunk of c5) {
+    for (const chunk of chunks) {
       resultChunks.push(chunk)
     }
 
